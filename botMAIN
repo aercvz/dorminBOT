@@ -1,0 +1,124 @@
+local whook = shared.settings.webhook
+
+local player = game.Players.LocalPlayer
+local playerGui = player.PlayerGui
+local character = player.Character
+local npc = workspace.NPCs.Dormin
+local clickDetector = npc:WaitForChild("ClickDetector")
+local remote = nil
+local gaveSilver = false
+local canGive = false
+local http = game:GetService("HttpService")
+local virtual = game:GetService("VirtualUser")
+local cd = false
+
+--\\ FUNCTIONS //
+
+local function send(message, description)
+    local _table = {
+        ["username"] = "DORMIN BOT",
+        ["embeds"] = {
+            {
+                ["title"] = message;
+                ["description"] = description
+            }
+        }
+    }
+
+    syn.request({
+        Url = whook,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = http:JSONEncode(_table)
+    })
+end
+
+local function kick(method, reason)
+    if method == "kick" then
+        send(("%s was kicked for %s"):format(player.Name, reason), "aercvz")
+        player:Kick(reason)
+    elseif method == "shutdown" then
+        send(("game was shutdown for %s"):format(reason), "aercvz")
+        game:Shutdown()
+    end
+end
+
+local function dialogue()
+    if character and (character.HumanoidRootPart.Position - npc.HumanoidRootPart.Position).magnitude < clickDetector.MaxActivationDistance then
+        cd = true
+        fireclickdetector(clickDetector)
+        task.wait(0.5)
+        cd = false
+    else
+        kick("shutdown", "player not near dormin")
+    end
+end
+
+local function getRemote(folder)
+    local children = folder:GetDescendants()
+
+    if #children > 0 then
+        for i, v in pairs(children) do
+            if v:IsA("RemoteEvent") then
+                v.OnClientEvent:Connect(function(args)
+                    if typeof(args) == "table" and args.msg then
+                        remote = v
+                        print(args.msg)
+                        if args.msg == "Sir, have you a coin to spare? Please..." then
+                            remote:FireServer({choice = "Of course."})
+                            send("Successfuly gave dormin a coin.", "aercvz")
+                            task.wait(0.5)
+                            remote:FireServer({exit = true})
+                        else
+                            remote:FireServer({exit = true})
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end
+getRemote(game.ReplicatedStorage)
+
+if playerGui:FindFirstChild("StartMenu") and game:IsLoaded() then
+    task.wait(0.2)
+    firesignal(playerGui.StartMenu.Choices.Play.MouseButton1Click)
+end
+
+repeat task.wait() fireclickdetector(clickDetector) until remote ~= nil
+
+send("initiated DORMIN BOT.", player.Name)
+player.Idled:Connect(function()
+    virtual:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    virtual:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+end)
+
+character.Humanoid.Died:Connect(function()
+    kick("shutdown", "how did you die bro")
+end)
+
+local kickd = false
+
+while task.wait() do
+    if character and (character.HumanoidRootPart.Position - npc.HumanoidRootPart.Position).magnitude < clickDetector.MaxActivationDistance then
+        fireclickdetector(clickDetector)
+    else
+        if kickd == false then
+            kickd = true
+            kick("shutdown", "player not near dormin")
+        end
+    end
+    for i, v in next, workspace.Live:GetChildren() do
+        if character and character:FindFirstChild("HumanoidRootPart") and v ~= character and v:FindFirstChild("HumanoidRootPart") and (character.HumanoidRootPart.Position - v.HumanoidRootPart.Position).magnitude <= 250 then
+            repeat task.wait() until character:FindFirstChild("Danger") == nil
+            task.wait(0.5)
+            if kickd == false then
+                kickd = true
+                kick("kick", "player close: "..v.Name)
+            end
+            task.wait(0.1)
+            game:GetService("TeleportService"):Teleport(3016661674, player)
+        end
+    end
+end
